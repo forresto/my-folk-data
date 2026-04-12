@@ -1,0 +1,5 @@
+builtin-programs/web/setup.folk
+
+display {when {Wish $::thisNode uses display "monitor" with width 1366 height 768 refreshRate 59997} with environment {}}
+
+camera {when {Wish $::thisNode uses camera "/base/axi/pcie@1000120000/rp1/i2c@88000/imx519@1a" with width 1920 height 1080} with environment {}}

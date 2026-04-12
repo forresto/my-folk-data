@@ -1,0 +1,39 @@
+When /tag/ is a results table for /entity/ with /fields/ {
+  When the collected results for [list $entity /id/ /field/ /value/] are /allResults/ &\
+       $tag has resolved geometry /geom/ {
+
+    # Organize results into {id -> {field -> value}} dict
+    set data {}
+    foreach r $allResults {
+      dict set data [dict get $r id] [dict get $r field] [dict get $r value]
+    }
+
+    set w [dict get $geom width]
+    set h [dict get $geom height]
+    set scale 0.007
+    set lineH [expr {$scale * 2.0}]
+    set cx [expr {$w * 0.10}]
+    set y  [expr {$h * 0.20}]
+
+    # Column header
+    set header "id"
+    foreach field $fields { append header "  [format %5s $field]" }
+    Wish to draw text onto $tag with \
+      position [list $cx $y] text $header scale [expr {$scale * 0.85}] anchor topleft color gray
+
+    # One row per entity id
+    dict for {id vals} $data {
+      set y [expr {$y + $lineH}]
+      set row [format "%-4s" $id]
+      foreach field $fields {
+        if {[dict exists $vals $field]} {
+          append row [format "  %5.2f" [dict get $vals $field]]
+        } else {
+          append row "     ?"
+        }
+      }
+      Wish to draw text onto $tag with \
+        position [list $cx $y] text $row scale $scale anchor topleft color white
+    }
+  }
+}

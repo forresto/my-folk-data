@@ -1,0 +1,49 @@
+When /tag/ is a knob {
+  Claim tag $tag has geometry {tagSize 26mm top 46mm right 43mm left 43mm bottom 46mm}
+
+  When the quad library is /quadLib/ &\
+       the pose library is /poseLib/ &\
+       the quad changer is /quadChange/ &\
+       display /disp/ has width /dw/ height /dh/ &\
+       display /disp/ has intrinsics /displayIntrinsics/ &\
+       $tag has quad /q/ {
+
+    fn quadChange
+    lassign [lmap v [$quadLib vertices [quadChange $q "display $disp"]] {
+      $poseLib project $displayIntrinsics $dw $dh $v
+    }] a b c d
+
+    set x [expr {([lindex $a 0]+[lindex $b 0]+[lindex $c 0]+[lindex $d 0]) / (2.0*$dw) - 1.0}]
+    set y [expr {([lindex $a 1]+[lindex $b 1]+[lindex $c 1]+[lindex $d 1]) / (2.0*$dh) - 1.0}]
+    set ddx [expr {[lindex $b 0]-[lindex $a 0]}]
+    set ddy [expr {[lindex $b 1]-[lindex $a 1]}]
+    set rotation [expr {atan2($ddy, $ddx)}]
+
+    Claim knob $tag x $x
+    Claim knob $tag y $y
+    Claim knob $tag rotation $rotation
+  }
+
+  When $tag has resolved geometry /geom/ {
+    set cx [expr {[dict get $geom width] / 2.0}]
+    set cy [expr {[dict get $geom height] / 2.0}]
+    set r 0.05
+    set pts {}
+    for {set i 0} {$i <= 6} {incr i} {
+      set a [expr {$i * 3.14159265 / 3.0 + 0.5}]
+      lappend pts [list [expr {$cx + $r * cos($a)}] [expr {$cy + $r * sin($a)}]]
+    }
+    Wish to draw a line onto $tag with points $pts width 0.003 color green
+  }
+
+  # DEBUG: display x y rotation
+  When $tag has resolved geometry /geom/ &\
+       knob $tag x /x/ & knob $tag y /y/ & knob $tag rotation /rot/ {
+    set cx [expr {[dict get $geom width] * 0.01}]
+    set cy [expr {[dict get $geom height] * 0.95}]
+    set label [format "x %.2f\ny %.2f\nr %.2f" $x $y $rot]
+    Wish to draw text onto $tag with \
+      position [list $cx $cy] \
+      text $label scale 0.01 anchor bottomleft color white
+  }
+}

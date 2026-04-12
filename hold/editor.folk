@@ -1,0 +1,13 @@
+builtin-programs/editor.folk
+
+{font-options-of:6 editor} {builtin-programs/editor.folk claims editor {6 editor} has font options with scale 0.01}
+buffer-for:1 {builtin-programs/editor.folk claims editor buffer for 1 is {Wish $this is labelled "Hello, Teo!"
+Wish $this is outlined blue}}
+buffer-for:5 {builtin-programs/editor.folk claims editor buffer for 5 is {Wish $this is labelled "Hello, Teo!"
+Wish $this is outlined red
+}}
+{font-options-of:7 editor} {builtin-programs/editor.folk claims editor {7 editor} has font options with scale 0.01}
+{font-options-of:web-program-883e0728-1acf-449b-b06f-ed038f064127 editor} {builtin-programs/editor.folk claims editor {web-program-883e0728-1acf-449b-b06f-ed038f064127 editor} has font options with scale 0.01}
+{font-options-of:8 editor} {builtin-programs/editor.folk claims editor {8 editor} has font options with scale 0.01}
+buffer-for:9 {builtin-programs/editor.folk claims editor buffer for 9 is {Wish $this is a knob
+}}
