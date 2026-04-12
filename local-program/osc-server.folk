@@ -1,0 +1,77 @@
+# OSC server: broadcasts Folk knob values as OSC over UDP
+# Plain OSC: /folk/knob/<id>/x|y|rotation  (float)
+# TUIO 1.1:  /tuio/2Dobj set messages (x/y normalized 0-1)
+#
+# Default target is LAN broadcast. Change oscTarget to a specific IP
+# if your network blocks 255.255.255.255.
+
+set ::oscPort   3333
+set ::oscTarget 255.255.255.255
+
+# --- OSC binary encoding (fn so they're visible inside When bodies) ---
+
+fn oscPad4 {bytes} {
+    set rem [expr {[string bytelength $bytes] % 4}]
+    if {$rem == 0} { return $bytes }
+    return "$bytes[string repeat \x00 [expr {4 - $rem}]]"
+}
+
+fn oscString {s} {
+    oscPad4 "${s}\x00"
+}
+
+# Build an OSC message. args: alternating type/value pairs.
+# Types: f (float32 BE), i (int32 BE), s (OSC string)
+fn oscMessage {address args} {
+    fn oscPad4; fn oscString
+    set typetag ","
+    set argbytes ""
+    foreach {t v} $args {
+        append typetag $t
+        switch $t {
+            f { append argbytes [binary format R [expr {double($v)}]] }
+            i { append argbytes [binary format I [expr {int($v)}]] }
+            s { append argbytes [oscString $v] }
+        }
+    }
+    return "[oscString $address][oscString $typetag]$argbytes"
+}
+
+# Wrap a list of OSC messages in an OSC bundle (timetag = immediate)
+fn oscBundle {messages} {
+    fn oscString
+    set bundle "[oscString #bundle][binary format WW 0 1]"
+    foreach msg $messages {
+        append bundle "[binary format I [string bytelength $msg]]$msg"
+    }
+    return $bundle
+}
+
+# --- Socket setup ---
+
+set ::oscSock [socket dgram]
+$::oscSock buffering none
+
+Claim OSC server is running on port $::oscPort
+
+# --- Send on every knob update ---
+
+When knob /tag/ x /x/ & knob /tag/ y /y/ & knob /tag/ rotation /rot/ {
+    fn oscMessage
+    regexp {(\d+)} $tag -> id
+    set dst $::oscTarget:$::oscPort
+
+    # Plain OSC — one message per axis
+    $::oscSock sendto [oscMessage /folk/knob/$id/x        f $x]   $dst
+    $::oscSock sendto [oscMessage /folk/knob/$id/y        f $y]   $dst
+    $::oscSock sendto [oscMessage /folk/knob/$id/rotation f $rot] $dst
+
+    # TUIO 1.1 /tuio/2Dobj set  (x/y remapped from -1..1 to 0..1)
+    set tx [expr {($x   + 1.0) / 2.0}]
+    set ty [expr {($y   + 1.0) / 2.0}]
+    set tuioSet [oscMessage /tuio/2Dobj \
+        s set  i $id  i $id \
+        f $tx  f $ty  f $rot \
+        f 0.0  f 0.0  f 0.0  f 0.0  f 0.0]
+    $::oscSock sendto $tuioSet $dst
+}
