@@ -93,30 +93,17 @@ These are completely different patterns:
 - `When /tag/ is a knob` — matches `Claim 0 is a knob` (tag ID is first word)
 - `When tag /tag/ is a knob` — matches `Claim tag 0 is a knob` (literal "tag" is first word)
 
-### Flat `When` conditions vs nested
-
-Prefer flat `When A & B & C` over nested `When A { When B { ... } }`. Nested Whens can
-fail to see sibling `Claim`s made in the outer block.
-
-```tcl
-# WRONG — inner When may not see knob claims from sibling When
-When $tag has resolved geometry /geom/ {
-  Claim knob $tag x ...
-  When knob $tag x /x/ { ... }   # may not fire
-}
-
-# RIGHT — flat, all conditions in one When
-When $tag has resolved geometry /geom/ &\
-     knob $tag x /x/ & knob $tag y /y/ {
-  ...
-}
-```
-
 ## Useful commands
 
 ```sh
 # Deploy to remote device
 make remote FOLK_REMOTE_NODE=folk-tyyppi-lantern.local
+
+# SSH into pi
+ssh folk@folk-tyyppi-lantern.local
+
+# Save wifi credentials for future venues
+nmcli device wifi connect "VenueSSID" password "venuepassword"
 
 # Watch logs
 journalctl -u folk -f
@@ -124,7 +111,7 @@ journalctl -u folk -f
 # Find log files
 find /tmp/folk* -maxdepth 2 -type f -size +0c -ls 2>/dev/null
 
-# Camera focus
+# Camera focus (actually mess with LensPosition in ~/folk/builtin-programs/camera/rpi.folk)
 sudo systemctl stop folk
 rpicam-still --autofocus-mode auto -t 3000 -o photo.jpg
 sudo systemctl start folk
