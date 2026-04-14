@@ -4,12 +4,17 @@ set countdown  5.0
 set maxFlight  7.0
 set scoreRadius 80
 set ballR  10
-set gravStr 350.0
+set gravStr 600.0
 set speed  600.0
 
-# === Obstacle knobs ===
+When /thing/ is an obstacle {
+  Claim tag $thing has geometry {tagSize 26mm top 20mm right 40mm left 40mm bottom 20mm}
+  Wish $thing is outlined yellow
+}
+
+# === Obstacle tags ===
 foreach tag {221 442 443 441 661 222 225 663 223 444} {
-  Claim $tag is a knob
+  Claim $tag is an obstacle
 }
 
 # === Knob snapshots ===
@@ -19,7 +24,7 @@ foreach p $players {
   Hold! -key [list kx $k]   { Claim kx $k 0.0 }
   Hold! -key [list ky $k]   { Claim ky $k 0.0 }
 }
-Hold! -key gravAngle { Claim gravAngle 1.5708 }
+Hold! -key gravAngle { Claim gravAngle -1.5708 }
 
 When knob /k/ rotation /r/ { Hold! -key [list krot $k] { Claim krot $k $r } }
 When knob /k/ x /x/         { Hold! -key [list kx $k]   { Claim kx $k $x } }
