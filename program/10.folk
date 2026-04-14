@@ -12,24 +12,6 @@ foreach tag {221 442 443 441 661 222 225 663 223 444} {
   Claim $tag is a knob
 }
 
-# === HUD screen position ===
-set ::hx 0.0
-set ::hy 0.0
-
-When the quad library is /quadLib/ &\
-     the pose library is /poseLib/ &\
-     the quad changer is /quadChange/ &\
-     display /hudDisp/ has width /dw2/ height /dh2/ &\
-     display /hudDisp/ has intrinsics /displayIntrinsics/ &\
-     $this has quad /q/ {
-  fn quadChange
-  lassign [lmap v [$quadLib vertices [quadChange $q "display $hudDisp"]] {
-    $poseLib project $displayIntrinsics $dw2 $dh2 $v
-  }] a b c d
-  set ::hx [expr {([lindex $a 0]+[lindex $b 0]+[lindex $c 0]+[lindex $d 0]) / 4.0}]
-  set ::hy [expr {([lindex $a 1]+[lindex $b 1]+[lindex $c 1]+[lindex $d 1]) / 4.0}]
-}
-
 # === Knob snapshots ===
 foreach p $players {
   set k [lindex $p 0]
@@ -82,6 +64,7 @@ When game physics /phys/ & \
 # === Physics + drawing loop ===
 When game physics /phys/ & \
      game scores /scores/ & \
+     $this has resolved geometry /geom/ & \
      display /disp/ has width /dw/ height /dh/ & \
      gravAngle /ga/ & \
      krot 1 /k1r/ & kx 1 /k1x/ & ky 1 /k1y/ & \
@@ -96,22 +79,32 @@ When game physics /phys/ & \
   set py    [dict get $phys py]
   set vx    [dict get $phys vx]
   set vy    [dict get $phys vy]
+  # First frame guard
+  if {$lt == 0.0} {
+    Hold! -key game-physics { Claim game physics [dict replace $phys lt $t t0 $t] }
+    return
+  }
+
   set dt      [expr {$t - $lt}]
   set elapsed [expr {$t - $t0}]
 
-  set hx $::hx
-  set hy $::hy
   set pc [lindex [lindex $players $pi] 1]
   set allRots [list $k1r $k2r]
   set allKx   [list $k1x $k2x]
   set allKy   [list $k1y $k2y]
 
-  # Scores
+  # HUD card dimensions
+  set cw [dict get $geom width]
+  set ch [dict get $geom height]
+  set cx [expr {$cw * 0.25}]
+  set cy [expr {$ch * 0.5}]
+
+  # Scores (draw onto card)
   for {set i 0} {$i < [llength $players]} {incr i} {
     set ic [lindex [lindex $players $i] 1]
-    Wish to draw text onto $disp with \
-      x [expr {$hx - 50 + $i * 100}] y [expr {$hy + 90}] \
-      text "P[expr {$i+1}]: [lindex $scores $i]" scale 24 anchor center color $ic
+    Wish to draw text onto $this with \
+      x [expr {$cx - 0.025 + $i * 0.05}] y [expr {$ch * 0.82}] \
+      text "P[expr {$i+1}]: [lindex $scores $i]" scale 0.014 anchor center color $ic
   }
 
   if {$phase eq "countdown"} {
@@ -119,30 +112,34 @@ When game physics /phys/ & \
     set rem [expr {$countdown - $elapsed < 0 ? 0.0 : $countdown - $elapsed}]
     set arclen [expr {6.2832 * $rem / $countdown}]
 
-    # Arc (inlined)
+    # Arc onto card (meters, radius ~35mm)
+    set arcR 0.035
     set arcPts {}
     for {set i 0} {$i <= 32} {incr i} {
       set a [expr {-1.5708 + $arclen * $i / 32.0}]
-      lappend arcPts [list [expr {$hx + 55 * cos($a)}] [expr {$hy + 55 * sin($a)}]]
+      lappend arcPts [list [expr {$cx + $arcR * cos($a)}] [expr {$cy + $arcR * sin($a)}]]
     }
-    Wish to draw a line onto $disp with points $arcPts width 8 color $pc
+    Wish to draw a line onto $this with points $arcPts width 0.004 color $pc
 
-    Wish to draw text onto $disp with \
-      x $hx y [expr {$hy - 14}] text "P[expr {$pi+1}]" scale 30 anchor center color $pc
-    Wish to draw text onto $disp with \
-      x $hx y [expr {$hy + 14}] \
-      text [format "%.0f" [expr {ceil($rem)}]] scale 24 anchor center color white
+    Wish to draw text onto $this with \
+      x $cx y [expr {$cy - 0.010}] text "P[expr {$pi+1}]" scale 0.018 anchor center color $pc
+    Wish to draw text onto $this with \
+      x $cx y [expr {$cy + 0.012}] \
+      text [format "%.0f" [expr {ceil($rem)}]] scale 0.016 anchor center color white
 
     if {$elapsed >= $countdown} {
       set rot [lindex $allRots $pi]
-      set fpx [expr {([lindex $allKx $pi] + 1) * $dw / 2.0}]
-      set fpy [expr {([lindex $allKy $pi] + 1) * $dh / 2.0}]
+      set kpx [expr {([lindex $allKx $pi] + 1) * $dw / 2.0}]
+      set kpy [expr {([lindex $allKy $pi] + 1) * $dh / 2.0}]
+      # Fire from ~50px above knob center (toward card top = -cos/sin direction)
+      set fpx [expr {$kpx + sin($rot) * 50}]
+      set fpy [expr {$kpy - cos($rot) * 50}]
       Hold! -key game-physics {
         Claim game physics [dict create \
           phase flying pi $pi t0 $t lt $t \
           px $fpx py $fpy \
-          vx [expr {cos($rot) * $speed}] \
-          vy [expr {sin($rot) * $speed}]]
+          vx [expr {sin($rot) * $speed}] \
+          vy [expr {-cos($rot) * $speed}]]
       }
       Hold! -key game-shot-scored { Claim game shot scored {} }
     } else {
