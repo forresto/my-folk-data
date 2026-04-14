@@ -26,20 +26,14 @@ When knob /k/ x /x/         { Hold! -key [list kx $k]   { Claim kx $k $x } }
 When knob /k/ y /y/         { Hold! -key [list ky $k]   { Claim ky $k $y } }
 When knob 10 rotation /r/   { Hold! -key gravAngle       { Claim gravAngle $r } }
 
-# === Game state (split to avoid write conflicts) ===
-When /nobody/ claims game physics /anything/ {
-  Hold! -key game-physics {
-    Claim game physics [dict create \
-      phase countdown pi 0 t0 0.0 lt 0.0 \
-      px 0.0 py 0.0 vx 0.0 vy 0.0]
-  }
+# === Game state init (top-level Hold! — no re-init on each claim update) ===
+Hold! -key game-physics {
+  Claim game physics [dict create \
+    phase countdown pi 0 t0 0.0 lt 0.0 \
+    px 0.0 py 0.0 vx 0.0 vy 0.0]
 }
-When /nobody/ claims game scores /anything/ {
-  Hold! -key game-scores { Claim game scores [lrepeat [llength $players] 0] }
-}
-When /nobody/ claims game shot scored /anything/ {
-  Hold! -key game-shot-scored { Claim game shot scored {} }
-}
+Hold! -key game-scores { Claim game scores [lrepeat [llength $players] 0] }
+Hold! -key game-shot-scored { Claim game shot scored {} }
 
 # === Scoring (separate loop, writes scores + shot-scored only) ===
 When game physics /phys/ & \
@@ -61,10 +55,8 @@ When game physics /phys/ & \
   }
 }
 
-# === Physics + drawing loop ===
+# === Physics loop (no card dependency — runs even when tag 10 blips) ===
 When game physics /phys/ & \
-     game scores /scores/ & \
-     $this has resolved geometry /geom/ & \
      display /disp/ has width /dw/ height /dh/ & \
      gravAngle /ga/ & \
      krot 1 /k1r/ & kx 1 /k1x/ & ky 1 /k1y/ & \
@@ -93,45 +85,12 @@ When game physics /phys/ & \
   set allKx   [list $k1x $k2x]
   set allKy   [list $k1y $k2y]
 
-  # HUD card dimensions
-  set cw [dict get $geom width]
-  set ch [dict get $geom height]
-  set cx [expr {$cw * 0.25}]
-  set cy [expr {$ch * 0.5}]
-
-  # Scores (draw onto card)
-  for {set i 0} {$i < [llength $players]} {incr i} {
-    set ic [lindex [lindex $players $i] 1]
-    Wish to draw text onto $this with \
-      x [expr {$cx - 0.025 + $i * 0.05}] y [expr {$ch * 0.82}] \
-      text "P[expr {$i+1}]: [lindex $scores $i]" scale 0.014 anchor center color $ic
-  }
-
   if {$phase eq "countdown"} {
-
-    set rem [expr {$countdown - $elapsed < 0 ? 0.0 : $countdown - $elapsed}]
-    set arclen [expr {6.2832 * $rem / $countdown}]
-
-    # Arc onto card (meters, radius ~35mm)
-    set arcR 0.035
-    set arcPts {}
-    for {set i 0} {$i <= 32} {incr i} {
-      set a [expr {-1.5708 + $arclen * $i / 32.0}]
-      lappend arcPts [list [expr {$cx + $arcR * cos($a)}] [expr {$cy + $arcR * sin($a)}]]
-    }
-    Wish to draw a line onto $this with points $arcPts width 0.004 color $pc
-
-    Wish to draw text onto $this with \
-      x $cx y [expr {$cy - 0.010}] text "P[expr {$pi+1}]" scale 0.018 anchor center color $pc
-    Wish to draw text onto $this with \
-      x $cx y [expr {$cy + 0.012}] \
-      text [format "%.0f" [expr {ceil($rem)}]] scale 0.016 anchor center color white
 
     if {$elapsed >= $countdown} {
       set rot [lindex $allRots $pi]
       set kpx [expr {([lindex $allKx $pi] + 1) * $dw / 2.0}]
       set kpy [expr {([lindex $allKy $pi] + 1) * $dh / 2.0}]
-      # Fire from ~50px above knob center (toward card top = -cos/sin direction)
       set fpx [expr {$kpx + sin($rot) * 50}]
       set fpy [expr {$kpy - cos($rot) * 50}]
       Hold! -key game-physics {
@@ -177,5 +136,51 @@ When game physics /phys/ & \
           px $newpx py $newpy vx $newvx vy $newvy lt $t]
       }
     }
+  }
+}
+
+# === HUD drawing loop (card-dependent, read-only — blips only affect display) ===
+When game physics /phys/ & \
+     game scores /scores/ & \
+     $this has resolved geometry /geom/ & \
+     the clock time is /t/ {
+
+  set pi    [dict get $phys pi]
+  set phase [dict get $phys phase]
+  set t0    [dict get $phys t0]
+  set elapsed [expr {$t - $t0}]
+
+  set pc [lindex [lindex $players $pi] 1]
+
+  set cw [dict get $geom width]
+  set ch [dict get $geom height]
+  set cx [expr {$cw * 0.25}]
+  set cy [expr {$ch * 0.5}]
+
+  # Scores
+  for {set i 0} {$i < [llength $players]} {incr i} {
+    set ic [lindex [lindex $players $i] 1]
+    Wish to draw text onto $this with \
+      x [expr {$cx - 0.025 + $i * 0.05}] y [expr {$ch * 0.82}] \
+      text "P[expr {$i+1}]: [lindex $scores $i]" scale 0.014 anchor center color $ic
+  }
+
+  if {$phase eq "countdown"} {
+    set rem [expr {$countdown - $elapsed < 0 ? 0.0 : $countdown - $elapsed}]
+    set arclen [expr {6.2832 * $rem / $countdown}]
+
+    set arcR 0.035
+    set arcPts {}
+    for {set i 0} {$i <= 32} {incr i} {
+      set a [expr {-1.5708 + $arclen * $i / 32.0}]
+      lappend arcPts [list [expr {$cx + $arcR * cos($a)}] [expr {$cy + $arcR * sin($a)}]]
+    }
+    Wish to draw a line onto $this with points $arcPts width 0.004 color $pc
+
+    Wish to draw text onto $this with \
+      x $cx y [expr {$cy - 0.010}] text "P[expr {$pi+1}]" scale 0.018 anchor center color $pc
+    Wish to draw text onto $this with \
+      x $cx y [expr {$cy + 0.012}] \
+      text [format "%.0f" [expr {ceil($rem)}]] scale 0.016 anchor center color white
   }
 }
