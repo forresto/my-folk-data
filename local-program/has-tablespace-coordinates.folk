@@ -1,0 +1,22 @@
+When /tag/ has tablespace coordinates {
+  When the quad library is /quadLib/ &\
+       the pose library is /poseLib/ &\
+       the quad changer is /quadChange/ &\
+       display /disp/ has width /dw/ height /dh/ &\
+       display /disp/ has intrinsics /displayIntrinsics/ &\
+       $tag has quad /q/ {
+
+    fn quadChange
+    lassign [lmap v [$quadLib vertices [quadChange $q "display $disp"]] {
+      $poseLib project $displayIntrinsics $dw $dh $v
+    }] a b c d
+
+    set x [expr {([lindex $a 0]+[lindex $b 0]+[lindex $c 0]+[lindex $d 0]) / (2.0*$dw) - 1.0}]
+    set y [expr {([lindex $a 1]+[lindex $b 1]+[lindex $c 1]+[lindex $d 1]) / (2.0*$dh) - 1.0}]
+    set rotation [expr {atan2([lindex $b 1]-[lindex $a 1], [lindex $b 0]-[lindex $a 0])}]
+
+    Claim tablespace $tag x $x
+    Claim tablespace $tag y $y
+    Claim tablespace $tag rotation $rotation
+  }
+}

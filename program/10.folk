@@ -3,6 +3,7 @@ set players {{1 cyan} {2 magenta}}
 set countdown  5.0
 set maxFlight  7.0
 set scoreRadius 80
+set obsR   55
 set ballR  10
 set gravStr 600.0
 set speed  600.0
@@ -12,12 +13,23 @@ When /thing/ is an obstacle {
   Wish $thing is outlined yellow
 }
 
-# === Obstacle tags ===
+# === Obstacle tags (knobs for position tracking, obstacles for visuals) ===
 foreach tag {221 442 443 441 661 222 225 663 223 444} {
+  Claim $tag has tablespace coordinates
   Claim $tag is an obstacle
+  Hold! -key [list obs $tag] { Claim obs $tag cx -999.0 cy -999.0 }
 }
 
-# === Knob snapshots ===
+# Update obstacle pixel position from tablespace x/y (normalized -1..1 → pixels)
+When /tag/ is an obstacle & \
+     tablespace /tag/ x /kox/ & tablespace /tag/ y /koy/ & \
+     display /disp/ has width /dw/ height /dh/ {
+  set ox [expr {($kox + 1.0) * $dw / 2.0}]
+  set oy [expr {($koy + 1.0) * $dh / 2.0}]
+  Hold! -key [list obs $tag] { Claim obs $tag cx $ox cy $oy }
+}
+
+# === Player knob snapshots ===
 foreach p $players {
   set k [lindex $p 0]
   Hold! -key [list krot $k] { Claim krot $k 0.0 }
@@ -31,7 +43,7 @@ When knob /k/ x /x/         { Hold! -key [list kx $k]   { Claim kx $k $x } }
 When knob /k/ y /y/         { Hold! -key [list ky $k]   { Claim ky $k $y } }
 When knob 10 rotation /r/   { Hold! -key gravAngle       { Claim gravAngle $r } }
 
-# === Game state init (top-level Hold! — no re-init on each claim update) ===
+# === Game state init ===
 Hold! -key game-physics {
   Claim game physics [dict create \
     phase countdown pi 0 t0 0.0 lt 0.0 \
@@ -40,32 +52,24 @@ Hold! -key game-physics {
 Hold! -key game-scores { Claim game scores [lrepeat [llength $players] 0] }
 Hold! -key game-shot-scored { Claim game shot scored {} }
 
-# === Scoring (separate loop, writes scores + shot-scored only) ===
+# === Physics loop (bounce + scoring inline) ===
 When game physics /phys/ & \
      game scores /scores/ & \
      game shot scored /shotScored/ & \
-     /tag/ has region /r/ {
-  if {[dict get $phys phase] ne "flying"} { return }
-  if {![string is integer -strict $tag] || $tag == $this} { return }
-  if {[lsearch $shotScored $tag] >= 0} { return }
-  lassign [region centroid $r] tx ty
-  set px [dict get $phys px]
-  set py [dict get $phys py]
-  if {[expr {hypot($tx - $px, $ty - $py)}] < $scoreRadius} {
-    set pi [dict get $phys pi]
-    set newScores [lreplace $scores $pi $pi [expr {[lindex $scores $pi] + 1}]]
-    set newShot [linsert $shotScored end $tag]
-    Hold! -key game-scores     { Claim game scores $newScores }
-    Hold! -key game-shot-scored { Claim game shot scored $newShot }
-  }
-}
-
-# === Physics loop (no card dependency — runs even when tag 10 blips) ===
-When game physics /phys/ & \
      display /disp/ has width /dw/ height /dh/ & \
      gravAngle /ga/ & \
      krot 1 /k1r/ & kx 1 /k1x/ & ky 1 /k1y/ & \
      krot 2 /k2r/ & kx 2 /k2x/ & ky 2 /k2y/ & \
+     obs 221 cx /oc221x/ cy /oc221y/ & \
+     obs 442 cx /oc442x/ cy /oc442y/ & \
+     obs 443 cx /oc443x/ cy /oc443y/ & \
+     obs 441 cx /oc441x/ cy /oc441y/ & \
+     obs 661 cx /oc661x/ cy /oc661y/ & \
+     obs 222 cx /oc222x/ cy /oc222y/ & \
+     obs 225 cx /oc225x/ cy /oc225y/ & \
+     obs 663 cx /oc663x/ cy /oc663y/ & \
+     obs 223 cx /oc223x/ cy /oc223y/ & \
+     obs 444 cx /oc444x/ cy /oc444y/ & \
      the clock time is /t/ {
 
   set pi    [dict get $phys pi]
@@ -76,7 +80,6 @@ When game physics /phys/ & \
   set py    [dict get $phys py]
   set vx    [dict get $phys vx]
   set vy    [dict get $phys vy]
-  # First frame guard
   if {$lt == 0.0} {
     Hold! -key game-physics { Claim game physics [dict replace $phys lt $t t0 $t] }
     return
@@ -120,10 +123,45 @@ When game physics /phys/ & \
     set newpx [expr {$px + $vx * $dt}]
     set newpy [expr {$py + $vy * $dt}]
 
+    # Wall bounce
     if {$newpx < $ballR}       { set newpx $ballR;              set newvx [expr { abs($newvx)}] }
     if {$newpx > $dw - $ballR} { set newpx [expr {$dw-$ballR}]; set newvx [expr {-abs($newvx)}] }
     if {$newpy < $ballR}       { set newpy $ballR;              set newvy [expr { abs($newvy)}] }
     if {$newpy > $dh - $ballR} { set newpy [expr {$dh-$ballR}]; set newvy [expr {-abs($newvy)}] }
+
+    # Obstacle bounce + scoring
+    set combR [expr {$ballR + $obsR}]
+    set scoresChanged false
+    foreach obsTag {221 442 443 441 661 222 225 663 223 444} \
+            ocx [list $oc221x $oc442x $oc443x $oc441x $oc661x \
+                      $oc222x $oc225x $oc663x $oc223x $oc444x] \
+            ocy [list $oc221y $oc442y $oc443y $oc441y $oc661y \
+                      $oc222y $oc225y $oc663y $oc223y $oc444y] {
+      if {$ocx < 0} continue
+      set dist [expr {hypot($newpx - $ocx, $newpy - $ocy)}]
+      # Bounce
+      if {$dist < $combR && $dist > 0} {
+        set nx [expr {($newpx - $ocx) / $dist}]
+        set ny [expr {($newpy - $ocy) / $dist}]
+        set dot [expr {$newvx*$nx + $newvy*$ny}]
+        if {$dot < 0} {
+          set newvx [expr {$newvx - 2.0*$dot*$nx}]
+          set newvy [expr {$newvy - 2.0*$dot*$ny}]
+          set newpx [expr {$ocx + $nx * ($combR + 1)}]
+          set newpy [expr {$ocy + $ny * ($combR + 1)}]
+        }
+      }
+      # Score
+      if {$dist < $scoreRadius && [lsearch $shotScored $obsTag] < 0} {
+        set scores [lreplace $scores $pi $pi [expr {[lindex $scores $pi] + 1}]]
+        set shotScored [linsert $shotScored end $obsTag]
+        set scoresChanged true
+      }
+    }
+    if {$scoresChanged} {
+      Hold! -key game-scores     { Claim game scores $scores }
+      Hold! -key game-shot-scored { Claim game shot scored $shotScored }
+    }
 
     Wish to draw a circle onto $disp with \
       center [list $newpx $newpy] radius $ballR thickness 0 color $pc filled true
@@ -144,7 +182,7 @@ When game physics /phys/ & \
   }
 }
 
-# === HUD drawing loop (card-dependent, read-only — blips only affect display) ===
+# === HUD drawing loop (card-dependent, read-only) ===
 When game physics /phys/ & \
      game scores /scores/ & \
      $this has resolved geometry /geom/ & \
