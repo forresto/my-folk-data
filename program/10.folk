@@ -1,0 +1,184 @@
+# === Config ===
+set players {{1 cyan} {2 magenta}}
+set countdown  5.0
+set maxFlight  7.0
+set scoreRadius 80
+set ballR  10
+set gravStr 350.0
+set speed  600.0
+
+# === Obstacle knobs ===
+foreach tag {221 442 443 441 661 222 225 663 223 444} {
+  Claim $tag is a knob
+}
+
+# === HUD screen position ===
+set ::hx 0.0
+set ::hy 0.0
+
+When the quad library is /quadLib/ &\
+     the pose library is /poseLib/ &\
+     the quad changer is /quadChange/ &\
+     display /hudDisp/ has width /dw2/ height /dh2/ &\
+     display /hudDisp/ has intrinsics /displayIntrinsics/ &\
+     $this has quad /q/ {
+  fn quadChange
+  lassign [lmap v [$quadLib vertices [quadChange $q "display $hudDisp"]] {
+    $poseLib project $displayIntrinsics $dw2 $dh2 $v
+  }] a b c d
+  set ::hx [expr {([lindex $a 0]+[lindex $b 0]+[lindex $c 0]+[lindex $d 0]) / 4.0}]
+  set ::hy [expr {([lindex $a 1]+[lindex $b 1]+[lindex $c 1]+[lindex $d 1]) / 4.0}]
+}
+
+# === Knob snapshots ===
+foreach p $players {
+  set k [lindex $p 0]
+  Hold! -key [list krot $k] { Claim krot $k 0.0 }
+  Hold! -key [list kx $k]   { Claim kx $k 0.0 }
+  Hold! -key [list ky $k]   { Claim ky $k 0.0 }
+}
+Hold! -key gravAngle { Claim gravAngle 1.5708 }
+
+When knob /k/ rotation /r/ { Hold! -key [list krot $k] { Claim krot $k $r } }
+When knob /k/ x /x/         { Hold! -key [list kx $k]   { Claim kx $k $x } }
+When knob /k/ y /y/         { Hold! -key [list ky $k]   { Claim ky $k $y } }
+When knob 10 rotation /r/   { Hold! -key gravAngle       { Claim gravAngle $r } }
+
+# === Game state (split to avoid write conflicts) ===
+When /nobody/ claims game physics /anything/ {
+  Hold! -key game-physics {
+    Claim game physics [dict create \
+      phase countdown pi 0 t0 0.0 lt 0.0 \
+      px 0.0 py 0.0 vx 0.0 vy 0.0]
+  }
+}
+When /nobody/ claims game scores /anything/ {
+  Hold! -key game-scores { Claim game scores [lrepeat [llength $players] 0] }
+}
+When /nobody/ claims game shot scored /anything/ {
+  Hold! -key game-shot-scored { Claim game shot scored {} }
+}
+
+# === Scoring (separate loop, writes scores + shot-scored only) ===
+When game physics /phys/ & \
+     game scores /scores/ & \
+     game shot scored /shotScored/ & \
+     /tag/ has region /r/ {
+  if {[dict get $phys phase] ne "flying"} { return }
+  if {![string is integer -strict $tag] || $tag == $this} { return }
+  if {[lsearch $shotScored $tag] >= 0} { return }
+  lassign [region centroid $r] tx ty
+  set px [dict get $phys px]
+  set py [dict get $phys py]
+  if {[expr {hypot($tx - $px, $ty - $py)}] < $scoreRadius} {
+    set pi [dict get $phys pi]
+    set newScores [lreplace $scores $pi $pi [expr {[lindex $scores $pi] + 1}]]
+    set newShot [linsert $shotScored end $tag]
+    Hold! -key game-scores     { Claim game scores $newScores }
+    Hold! -key game-shot-scored { Claim game shot scored $newShot }
+  }
+}
+
+# === Physics + drawing loop ===
+When game physics /phys/ & \
+     game scores /scores/ & \
+     display /disp/ has width /dw/ height /dh/ & \
+     gravAngle /ga/ & \
+     krot 1 /k1r/ & kx 1 /k1x/ & ky 1 /k1y/ & \
+     krot 2 /k2r/ & kx 2 /k2x/ & ky 2 /k2y/ & \
+     the clock time is /t/ {
+
+  set pi    [dict get $phys pi]
+  set phase [dict get $phys phase]
+  set t0    [dict get $phys t0]
+  set lt    [dict get $phys lt]
+  set px    [dict get $phys px]
+  set py    [dict get $phys py]
+  set vx    [dict get $phys vx]
+  set vy    [dict get $phys vy]
+  set dt      [expr {$t - $lt}]
+  set elapsed [expr {$t - $t0}]
+
+  set hx $::hx
+  set hy $::hy
+  set pc [lindex [lindex $players $pi] 1]
+  set allRots [list $k1r $k2r]
+  set allKx   [list $k1x $k2x]
+  set allKy   [list $k1y $k2y]
+
+  # Scores
+  for {set i 0} {$i < [llength $players]} {incr i} {
+    set ic [lindex [lindex $players $i] 1]
+    Wish to draw text onto $disp with \
+      x [expr {$hx - 50 + $i * 100}] y [expr {$hy + 90}] \
+      text "P[expr {$i+1}]: [lindex $scores $i]" scale 24 anchor center color $ic
+  }
+
+  if {$phase eq "countdown"} {
+
+    set rem [expr {$countdown - $elapsed < 0 ? 0.0 : $countdown - $elapsed}]
+    set arclen [expr {6.2832 * $rem / $countdown}]
+
+    # Arc (inlined)
+    set arcPts {}
+    for {set i 0} {$i <= 32} {incr i} {
+      set a [expr {-1.5708 + $arclen * $i / 32.0}]
+      lappend arcPts [list [expr {$hx + 55 * cos($a)}] [expr {$hy + 55 * sin($a)}]]
+    }
+    Wish to draw a line onto $disp with points $arcPts width 8 color $pc
+
+    Wish to draw text onto $disp with \
+      x $hx y [expr {$hy - 14}] text "P[expr {$pi+1}]" scale 30 anchor center color $pc
+    Wish to draw text onto $disp with \
+      x $hx y [expr {$hy + 14}] \
+      text [format "%.0f" [expr {ceil($rem)}]] scale 24 anchor center color white
+
+    if {$elapsed >= $countdown} {
+      set rot [lindex $allRots $pi]
+      set fpx [expr {([lindex $allKx $pi] + 1) * $dw / 2.0}]
+      set fpy [expr {([lindex $allKy $pi] + 1) * $dh / 2.0}]
+      Hold! -key game-physics {
+        Claim game physics [dict create \
+          phase flying pi $pi t0 $t lt $t \
+          px $fpx py $fpy \
+          vx [expr {cos($rot) * $speed}] \
+          vy [expr {sin($rot) * $speed}]]
+      }
+      Hold! -key game-shot-scored { Claim game shot scored {} }
+    } else {
+      Hold! -key game-physics { Claim game physics [dict replace $phys lt $t] }
+    }
+
+  } elseif {$phase eq "flying"} {
+
+    set gx [expr {cos($ga) * $gravStr}]
+    set gy [expr {sin($ga) * $gravStr}]
+
+    set newvx [expr {$vx + $gx * $dt}]
+    set newvy [expr {$vy + $gy * $dt}]
+    set newpx [expr {$px + $vx * $dt}]
+    set newpy [expr {$py + $vy * $dt}]
+
+    if {$newpx < $ballR}       { set newpx $ballR;              set newvx [expr { abs($newvx)}] }
+    if {$newpx > $dw - $ballR} { set newpx [expr {$dw-$ballR}]; set newvx [expr {-abs($newvx)}] }
+    if {$newpy < $ballR}       { set newpy $ballR;              set newvy [expr { abs($newvy)}] }
+    if {$newpy > $dh - $ballR} { set newpy [expr {$dh-$ballR}]; set newvy [expr {-abs($newvy)}] }
+
+    Wish to draw a circle onto $disp with \
+      center [list $newpx $newpy] radius $ballR thickness 0 color $pc filled true
+
+    if {$elapsed >= $maxFlight} {
+      set nextPi [expr {($pi + 1) % [llength $players]}]
+      Hold! -key game-physics {
+        Claim game physics [dict create \
+          phase countdown pi $nextPi t0 $t lt $t \
+          px $newpx py $newpy vx $newvx vy $newvy]
+      }
+    } else {
+      Hold! -key game-physics {
+        Claim game physics [dict replace $phys \
+          px $newpx py $newpy vx $newvx vy $newvy lt $t]
+      }
+    }
+  }
+}

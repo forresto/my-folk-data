@@ -6,7 +6,7 @@
 # if your network blocks 255.255.255.255.
 
 set ::oscPort   3333
-set ::oscTarget 255.255.255.255
+set ::oscTarget 192.168.178.87
 
 # --- OSC binary encoding (fn so they're visible inside When bodies) ---
 

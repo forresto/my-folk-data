@@ -102,6 +102,9 @@ make remote FOLK_REMOTE_NODE=folk-tyyppi-lantern.local
 # SSH into pi
 ssh folk@folk-tyyppi-lantern.local
 
+# Restart Folk
+sudo systemctl restart folk
+
 # Save wifi credentials for future venues
 nmcli device wifi connect "VenueSSID" password "venuepassword"
 
