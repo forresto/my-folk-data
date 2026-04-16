@@ -30,7 +30,7 @@ bun index.js
 
 Cuttle project for demos.folk with component for all 48714 April Tags, 52h13 standard: 
 * Source: https://cuttle.xyz/@forresto/demos-folk-zine-april-tags-BeOEmDEsSzgt 
-* PDF: [demos.folk zine april tags - a4.pdf](../demos.folk zine april tags - a4.pdf)
+* PDF: [demos.folk zine april tags - a4.pdf](<../pdf/demos.folk zine april tags - a4.pdf>)
 
 ``` js
 async function loadCodes(url) {
