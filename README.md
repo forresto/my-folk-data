@@ -112,7 +112,7 @@ nmcli device wifi connect "VenueSSID" password "venuepassword"
 journalctl -u folk -f
 
 # Find log files
-find /tmp/folk* -maxdepth 2 -type f -size +0c -ls 2>/dev/null
+find /tmp/folk*.stderr -maxdepth 2 -type f -size +0c -ls 2>/dev/null
 
 # Camera focus (actually mess with LensPosition in ~/folk/builtin-programs/camera/rpi.folk)
 sudo systemctl stop folk

@@ -1,8 +1,18 @@
+# apriltag-data-to-png
 
+PNG data representation of the [AprilTag](https://github.com/AprilRobotics/apriltag) 52h13 table.
 
-# Compression
+![tagStandard52h13.png](./output/tagStandard52h13.png)
 
-Converts `vendor/tagStandard52h13.c` (48714 `uint64` tag codes) into a 368×353 RGB PNG.
+What 52 and 13 mean:
+
+- **52** = number of data bits per tag (the interior bit pattern)
+- **13** = minimum Hamming distance between any two valid code words (error-correction property)
+- Together they name the family: `tagStandard52h13`
+
+## Compression
+
+Converts `vendor/tagStandard52h13.c.txt` (48714 `uint64` tag codes) into a 368×353 RGB PNG.
 Raw bytes packed sequentially across RGB channels; entries span pixel boundaries.
 48714 × 8 = 389712 bytes ÷ 3 = 129904 pixels = 368×353 (exact fit, no padding).
 
@@ -16,7 +26,7 @@ Raw bytes packed sequentially across RGB channels; entries span pixel boundaries
 bun index.js
 ```
 
-# Browser access
+## Browser access
 
 Cuttle project for demos.folk with component for all 48714 April Tags, 52h13 standard: 
 * Source: https://cuttle.xyz/@forresto/demos-folk-zine-april-tags-BeOEmDEsSzgt 
