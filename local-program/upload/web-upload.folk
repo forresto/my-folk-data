@@ -16,7 +16,7 @@ Subscribe: save upload /b64data/ with filename /filename/ {
         file delete $tmpfile
     }
 
-    set code "Wish \$this is upload \"$key\"\nWish \$this is labeled \"$filename\""
+    set code "Wish \$this is upload \"$key\"\nWish \$this is labelled \"$filename\""
     Notify: print code $code
 
     # print code handler runs synchronously, assigns the program ID

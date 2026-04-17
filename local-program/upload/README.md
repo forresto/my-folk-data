@@ -23,7 +23,7 @@ A new program is created and printed with a reference to the media file
 Draft printed code:
 ```folk
 Wish $this is upload ... # (key, the unique filename)
-Wish $this is labeled "original filename.mp4"
+Wish $this is labelled "original filename.mp4"
 ```
 
 The web form shows the printed program AprilTag at the top of the page, making the device a temporary tag.
