@@ -1,0 +1,4 @@
+set hostname [info hostname]
+set ip [lindex [exec hostname -I] 0]
+Wish $this is labelled "Upload photos:\nhttp://$hostname.local:4273/upload\nhttp://$ip:4273/upload"
+Wish $this is outlined blue
