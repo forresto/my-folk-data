@@ -11,3 +11,30 @@ Wish $this is outlined red
 {font-options-of:8 editor} {builtin-programs/editor.folk claims editor {8 editor} has font options with scale 0.01}
 buffer-for:9 {builtin-programs/editor.folk claims editor buffer for 9 is {Wish $this is a knob
 }}
+buffer-for:45006 {builtin-programs/editor.folk claims editor buffer for 45006 is {
+    Wish $this is outlined blue
+    When $this points up at /p/ {
+        Wish $this is labelled "Pointing at $p"
+        Wish $p is labelled "and I am being pointed at"
+    }
+}}
+buffer-for:45005 {builtin-programs/editor.folk claims editor buffer for 45005 is {
+    When the clock time is /t/ {
+        Wish $this draws a circle offset [list expr {sin($t) * 50} 0]
+    }
+}}
+buffer-for:45001 {builtin-programs/editor.folk claims editor buffer for 45001 is {
+    Wish $this is labelled "My wishes came true!"
+    Wish $this is outlined blue
+}}
+buffer-for:45002 {builtin-programs/editor.folk claims editor buffer for 45002 is {
+    When /actor/ is cool {
+        Wish $this is labelled "$actor is pretty cool"
+        Wish $actor is outlined red 
+    }
+}}
+buffer-for:45008 {builtin-programs/editor.folk claims editor buffer for 45008 is {
+    When $this has camera slice /slice/ {
+    Wish $this displays camera slice $slice
+    }
+}}

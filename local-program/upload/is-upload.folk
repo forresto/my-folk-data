@@ -1,0 +1,7 @@
+When /someone/ wishes /p/ is upload /key/ &\
+     /p/ has resolved geometry /geom/ {
+    set path "$::env(HOME)/folk-data/uploads/$key"
+    if {[file exists $path]} {
+        Wish $p displays image $path
+    }
+}

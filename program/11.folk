@@ -1,0 +1,7 @@
+When /thing/ is a zine page {
+  Claim tag $thing has geometry {tagSize 30mm top 15mm right 15mm left 15mm bottom 57mm}
+}
+
+foreach tag {45000 45001 45002 45003 45004 45005 45006 45007} {
+  Claim $tag is a zine page
+}

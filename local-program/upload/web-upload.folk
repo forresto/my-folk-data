@@ -1,0 +1,133 @@
+Subscribe: save upload /b64data/ with filename /filename/ {
+    package require base64
+    set data [binary decode base64 $b64data]
+    set tmpfile /tmp/folk-upload-[pid]-[clock microseconds]
+    set fd [open $tmpfile wb]
+    puts -nonewline $fd $data
+    close $fd
+    set md5 [lindex [exec md5sum $tmpfile] 0]
+    set ext [string tolower [file extension $filename]]
+    set key "$md5$ext"
+    file mkdir $::env(HOME)/folk-data/uploads
+    set dest "$::env(HOME)/folk-data/uploads/$key"
+    if {![file exists $dest]} {
+        file rename $tmpfile $dest
+    } else {
+        file delete $tmpfile
+    }
+
+    set code "Wish \$this is upload \"$key\"\nWish \$this is labeled \"$filename\""
+    Notify: print code $code
+
+    # print code handler runs synchronously, assigns the program ID
+    set idResults [Query! the next program id is /id/]
+    set programId [expr {[dict get [lindex $idResults 0] id] + 1}]
+
+    Notify: upload complete $key with program-id $programId
+}
+
+When the print library is /printLib/ &\
+     the image library is /imageLib/ {
+    Wish the web server handles route {/tag/(\d+)$} with handler {
+        set id $1
+        set tagImage [$printLib tagImageForId $id]
+        set size 10
+        set cellSize 20
+        set svgSize [expr {$size * $cellSize}]
+
+        set rects ""
+        for {set y 0} {$y < $size} {incr y} {
+            for {set x 0} {$x < $size} {incr x} {
+                set j [expr {$y * [$imageLib Image_bytesPerRow $tagImage] + $x}]
+                set pixel [$imageLib Image_data $tagImage $j]
+                if {$pixel == 0} {
+                    append rects "<rect x=\"[expr {$x * $cellSize}]\" y=\"[expr {$y * $cellSize}]\" width=\"$cellSize\" height=\"$cellSize\"/>\n"
+                }
+            }
+        }
+
+        set svg "<?xml version=\"1.0\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 $svgSize $svgSize\">\n<rect width=\"$svgSize\" height=\"$svgSize\" fill=\"white\"/>\n${rects}</svg>"
+        dict create statusAndHeaders "HTTP/1.1 200 OK\nConnection: close\nContent-Type: image/svg+xml\n\n" body $svg
+    }
+}
+
+Wish the web server handles route "/upload" with handler {
+    html {
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>folk: Upload</title>
+    <style>
+      body { font-family: sans-serif; max-width: 480px; margin: 2em auto; padding: 0 1em; }
+      input[type="file"] { font-size: 1.2em; margin: 1em 0; }
+      button { font-size: 1.2em; padding: 0.5em 1.5em; }
+      #status { display: block; margin-top: 1em; }
+      #preview { max-width: 100%; max-height: 300px; margin-top: 1em; display: none; }
+      #tag { display: none; width: 200px; height: 200px; margin: 1em auto; image-rendering: pixelated; }
+    </style>
+  </head>
+  <body>
+    <img id="tag">
+    <h2>Upload to folk</h2>
+    <input type="file" id="fileInput" accept="image/*,.gif">
+    <img id="preview">
+    <br>
+    <button id="uploadBtn" onclick="handleUpload()" disabled>Upload &amp; Print</button>
+    <div id="uploadStatus"></div>
+    <span id="status"></span>
+
+    <script src="/lib/folk.js"></script>
+    <script>
+const fileInput = document.getElementById('fileInput');
+const preview = document.getElementById('preview');
+const uploadBtn = document.getElementById('uploadBtn');
+const statusEl = document.getElementById('uploadStatus');
+const tagEl = document.getElementById('tag');
+
+let fileBase64 = null;
+let originalFilename = '';
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  originalFilename = file.name;
+  uploadBtn.disabled = false;
+
+  const url = URL.createObjectURL(file);
+  preview.src = url;
+  preview.style.display = 'block';
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    fileBase64 = reader.result.split(',')[1];
+  };
+  reader.readAsDataURL(file);
+});
+
+const ws = new FolkWS(statusEl);
+
+ws.subscribe(tcl`upload complete /key/ with program-id /programId/`, ({key, programId}) => {
+  tagEl.src = '/tag/' + programId;
+  tagEl.style.display = 'block';
+  statusEl.textContent = `Printed ${programId}! Show this tag to the camera, or upload another.`;
+  uploadBtn.disabled = false;
+  fileBase64 = null;
+});
+
+async function handleUpload() {
+  if (!fileBase64) return;
+
+  uploadBtn.disabled = true;
+  statusEl.textContent = 'Uploading...';
+
+  const lcName = originalFilename.toLowerCase();
+  await ws.connected;
+  ws.run(tcl`Notify: save upload ${fileBase64} with filename ${lcName}`);
+}
+    </script>
+  </body>
+</html>
+    }
+}
